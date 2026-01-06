@@ -19,6 +19,7 @@ from tensorflow.keras import Model as KerasModel
 from scipy.interpolate import interp1d
 import warnings
 from ucimlrepo import fetch_ucirepo
+from collections import defaultdict
 from scipy.stats import qmc
 import gc
 from sklearn.metrics import mean_absolute_error, root_mean_squared_error
@@ -2529,3 +2530,329 @@ def evaluate_distance_prediction_general(folder_path, file_prefix, test_data, sy
     df_results = pd.DataFrame(results_table)
     print("\n=== Final Distance Prediction Results ===")
     print(df_results.to_string(index=False))
+
+
+# This functions loads the results of the corresponding experiment.
+# Then, it computes the means of the final metrics across the different seeds available.
+# Finally, these means are returned in a convenient list of tuples.
+def retrieve_results_final_stats(folder_path, file_prefix_pattern):
+    """
+    Loads the results for all DS and copy combinations in the folder matching the prefix pattern and computes their final metrics.
+
+    Arguments:
+        folder_path: str --- Path to the folder where results are stored.
+        file_prefix_pattern: str --- Name of the results file truncated to remove the dataset, models and seed numbers.
+    
+    Returns:
+        results:list --- List of tuples describing the algorithm, models and dataset together with their mean final metrics.
+    """
+
+    # List all files in the folder
+    all_files = os.listdir(folder_path)
+    matching_files = [f for f in all_files if f.startswith(file_prefix_pattern)]
+
+    # Group files by DS and copy numbers
+    pattern = re.compile(r'(DS\d+_\d+_\d+)_seed')
+    groups = {}
+    for f in matching_files:
+        match = pattern.search(f)
+        if match:
+            group_key = match.group(1)
+            if group_key not in groups:
+                groups[group_key] = []
+            groups[group_key].append(f)
+
+    results = []
+
+    # Mapping for algorithm names
+    algo_map = {
+        "Algorithm 1 Copy": "Algo. 1",
+        "Algorithm 2 Copy": "Algo. 2",
+        "Hard Copy": "Hard"
+    }
+
+    # Mapping for DS copy numbers
+    model_map = {1: "RF", 2: "GB", 3: "NN"}
+    network_map = {1: "SNN", 2: "MNN", 3: "LNN", 4: "GB"}
+
+    length = len(groups.items())
+    ii = 1
+    # Retrieve results
+    for group_key, files in groups.items():
+        ds_match = re.search(r'DS(\d+)', group_key)
+        ds_number = int(ds_match.group(1)) if ds_match else None
+
+        copy_match = re.search(r'_(\d+)_(\d+)$', group_key)
+        if copy_match:
+            model_num = int(copy_match.group(1))
+            network_num = int(copy_match.group(2))
+            model_network = f"{model_map.get(model_num, 'Unknown')}/{network_map.get(network_num, 'Unknown')}"
+        else:
+            model_network = "Unknown"
+
+        # Build full prefix for load_all_seeds
+        full_prefix = file_prefix_pattern + group_key.split("DS")[1] + "_seed"
+        model_data, blackb_acc = load_all_seeds(folder_path, full_prefix)
+
+        # Compute final stats using the corresponding function
+        final_stats_df = compute_final_stats(model_data, blackb_acc)
+
+        # Extract acc and efe_unif means for each model
+        for model_id, label in [(1, "Algorithm 1 Copy"), (2, "Algorithm 2 Copy"), (3, "Hard Copy")]:
+            row = final_stats_df.loc[final_stats_df["model"] == f"Model {model_id}"]
+            if not row.empty:
+                acc_mean = float(row["acc m."].values[0])
+                efe_unif_mean = float(row["efe_unif m."].values[0])
+            else:
+                acc_mean = None
+                efe_unif_mean = None
+                    
+            results.append((algo_map[label], model_network, ds_number, acc_mean, efe_unif_mean))
+        
+        # Completion counter
+        if ii%(int(length/5)) == 0:
+            print(f"Computations done: {ii} out of {length}")
+        ii+=1
+    
+    print ("All results retrieved")
+    
+    return results
+
+# This functions loads the results of the corresponding experiment.
+# Then, it computes the means of the average metrics across the different seeds available.
+# To do it, it uses the previous average_metric_interpolated function.
+def retrieve_results_avg(folder_path, file_prefix_pattern):
+    """
+    Loads the results for all DS and copy combinations in the folder matching the prefix pattern and computes their average metrics.
+
+    Arguments:
+        folder_path: str --- Path to the folder where results are stored.
+        file_prefix_pattern: str --- Name of the results file truncated to remove the dataset, models and seed numbers.
+    
+    Returns:
+        results:list --- List of tuples describing the algorithm, models and dataset together with their mean average metrics.
+    """
+
+    # List all files in the folder
+    all_files = os.listdir(folder_path)
+    matching_files = [f for f in all_files if f.startswith(file_prefix_pattern)]
+
+    # Group files by DS and copy numbers
+    pattern = re.compile(r'(DS\d+_\d+_\d+)_seed')
+    groups = {}
+    for f in matching_files:
+        match = pattern.search(f)
+        if match:
+            group_key = match.group(1)
+            if group_key not in groups:
+                groups[group_key] = []
+            groups[group_key].append(f)
+
+    results = []
+
+    # Mapping for algorithm names
+    algo_map = {
+        "Algorithm 1 Copy": "Algo. 1",
+        "Algorithm 2 Copy": "Algo. 2",
+        "Hard Copy": "Hard"
+    }
+
+    # Mapping for DS copy numbers
+    model_map = {1: "RF", 2: "GB", 3: "NN"}
+    network_map = {1: "SNN", 2: "MNN", 3: "LNN", 4: "GB"}
+
+    length = len(groups.items())
+
+    ii = 1
+
+    # Retrieve results
+    for group_key, files in groups.items():
+        ds_match = re.search(r'DS(\d+)', group_key)
+        ds_number = int(ds_match.group(1)) if ds_match else None
+
+        copy_match = re.search(r'_(\d+)_(\d+)$', group_key)
+        if copy_match:
+            model_num = int(copy_match.group(1))
+            network_num = int(copy_match.group(2))
+            model_network = f"{model_map.get(model_num, 'Unknown')}/{network_map.get(network_num, 'Unknown')}"
+        else:
+            model_network = "Unknown"
+
+        # Build the full prefix for load_all_seeds
+        full_prefix = file_prefix_pattern + group_key.split("DS")[1] + "_seed"
+        model_data, _ = load_all_seeds(folder_path, full_prefix)
+
+        for model_id, label in [(1, "Algorithm 1 Copy"), (2, "Algorithm 2 Copy"), (3, "Hard Copy")]:
+            data = model_data[model_id]
+
+            # Compute metrics
+            x_pts_acc, y_pts_acc = average_metric_interpolated(data["pts"], data["acc"], log_scale=True)
+            x_pts_efe, y_pts_efe = average_metric_interpolated(data["pts"], data["efe_unif"], log_scale=True)
+
+            acc_value = np.mean(np.nan_to_num(y_pts_acc, nan=0.0)) if y_pts_acc is not None else None
+            efe_value = np.mean(np.nan_to_num(y_pts_efe, nan=0.0)) if y_pts_efe is not None else None
+
+            results.append((algo_map[label], model_network, ds_number, acc_value, efe_value))
+
+        # Completion counter
+        if ii%(int(length/5)) == 0:
+            print(f"Computations done: {ii} out of {length}")
+        ii+=1
+    
+    print ("All results retrieved")
+    
+    return results
+
+# This functions computes the mean of the metrics achieved in a certain dataset by a certain algorithm or method. 
+def get_mean(algo, datasets, data):
+    """
+    Compute the means across model combinations of the provided metrics for the specified datasets and algorithm.
+
+    Arguments:
+        algo: str --- Name of the algorithm for which we compute the metric means. 
+        datasets: range --- Range of datasets for which to compute the means.
+        data: collections.defaultdict --- Custom dictionary indexed by tuples that contains the metrics to be averaged.
+
+    Returns:
+        arr_mean_acc: numpy.ndarry --- Array of the mean accuracies for the specified datasets and algorithm.
+        arr_mean_1fid: numpy.ndarry --- Array of the mean 1-fidelity error for the specified datasets and algorithm.
+    """
+    
+    mean_acc, mean_1fid = [], []
+
+    # Compute the means across models for the corresponding algorithm and datasets
+    for ds in datasets:
+        if (algo, ds) in data:
+            acc = np.mean(data[(algo, ds)]['accuracy'])
+            err = np.mean(data[(algo, ds)]['error'])
+            mean_acc.append(acc)
+            mean_1fid.append(1 - err)
+        else:
+            mean_acc.append(np.nan)
+            mean_1fid.append(np.nan)
+
+    arr_mean_acc = np.array(mean_acc)
+    arr_mean_1fid = np.array(mean_1fid)
+    
+    return arr_mean_acc, arr_mean_1fid
+
+# This function is used to plot with bar charts the results from Experiment 1.
+# These results are averaged across all model combinations and shown for each dataset and algorithm.
+# The results of the hard copy are used as the 0 x-axis.
+def plot_algo_comparison(results):
+    """
+    Compute the means of the provided metrics of Experiment 1 across all model combinations and plot them with bar charts.
+
+    Arguments:
+        results:list --- List of tuples describing the algorithm, models and dataset together with their mean metrics.
+
+    Returns:
+        Nothing
+    """
+    
+    # Filter out rows ending with '/GB'
+    filtered_results = [t for t in results if not t[1].endswith('/GB')]
+
+    # Organize the data
+    data = defaultdict(lambda: {'accuracy': [], 'error': []})
+    for algo, model, dataset, acc, err in filtered_results:
+        data[(algo, dataset)]['accuracy'].append(acc)
+        data[(algo, dataset)]['error'].append(err)
+
+    datasets = range(1, 7)
+
+    # Compute the means
+    hard_acc, hard_1fid = get_mean('Hard', datasets, data)
+    algo1_acc, algo1_1fid = get_mean('Algo. 1', datasets, data)
+    algo2_acc, algo2_1fid = get_mean('Algo. 2', datasets, data)
+
+    # Compute differences relative to Hard
+    algo1_acc_diff = algo1_acc - hard_acc
+    algo2_acc_diff = algo2_acc - hard_acc
+    algo1_1fid_diff = algo1_1fid - hard_1fid
+    algo2_1fid_diff = algo2_1fid - hard_1fid
+
+    # Plot
+    bar_width = 0.15
+    x = np.arange(len(datasets))
+    offsets = np.array([-1.5, -0.5, 0.5, 1.5]) * bar_width
+
+    fig, ax = plt.subplots(figsize=(12, 7))
+
+    for i, ds in enumerate(datasets):
+        ax.bar(x[i] + offsets[0], algo1_acc_diff[i], width=bar_width, label=r'Alg. 1 $\mathcal{A}_{\mathcal{C}}$' if i==0 else "", color='tab:red')
+        ax.bar(x[i] + offsets[1], algo2_acc_diff[i], width=bar_width, label=r'Alg. 2 $\mathcal{A}_{\mathcal{C}}$' if i==0 else "", color='tab:blue')
+        ax.bar(x[i] + offsets[2], algo1_1fid_diff[i], width=bar_width, label=r'Alg. 1 $1-R_{\mathrm{emp}}^{\mathcal{S}}$' if i==0 else "", color='tab:red', alpha=0.5, hatch='//')
+        ax.bar(x[i] + offsets[3], algo2_1fid_diff[i], width=bar_width, label=r'Alg. 2 $1-R_{\mathrm{emp}}^{\mathcal{S}}$' if i==0 else "", color='tab:blue', alpha=0.5, hatch='//')
+
+    ax.axhline(0, color='black', linewidth=1)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f'Dataset {d}' for d in datasets])
+    ax.set_ylabel('Difference relative to Hard copy')
+    ax.set_title('Performance of Algo.1 cp. and Algo.2 cp. relative to Hard cp. (symlog scale)')
+    ax.legend(ncol=2)
+    ax.grid(True, axis='y')
+    ax.set_yscale('symlog', linthresh=0.001)
+
+    plt.tight_layout()
+    plt.show()
+
+# This function is used to plot with bar charts the results from the Extension experiment.
+# These results are averaged across all model combinations and shown for each dataset and copy stage.
+# The results of the hard copy are used as the 0 x-axis.
+def plot_algo_comparison_extension(results):
+    """
+    Compute the means of the provided metrics of the Extension experiment across all model combinations and plot them with bar charts.
+
+    Arguments:
+        results:list --- List of tuples describing the algorithm, models and dataset together with their mean metrics.
+
+    Returns:
+        Nothing
+    """
+    
+    # Filter out rows ending with '/GB'
+    filtered_results = [t for t in results if not t[1].endswith('/GB')]
+
+    # Organize data
+    data = defaultdict(lambda: {'accuracy': [], 'error': []})
+    for algo, model, dataset, acc, err in filtered_results:
+        data[(algo, dataset)]['accuracy'].append(acc)
+        data[(algo, dataset)]['error'].append(err)
+
+    datasets = range(4, 7)
+
+    # Compute the means
+    hard_acc, hard_1fid = get_mean('Hard', datasets, data)
+    algo1_acc, algo1_1fid = get_mean('Algo. 1', datasets, data)
+    algo2_acc, algo2_1fid = get_mean('Algo. 2', datasets, data)
+
+    # Compute differences relative to Hard
+    algo1_acc_diff = algo1_acc - hard_acc
+    algo2_acc_diff = algo2_acc - hard_acc
+    algo1_1fid_diff = algo1_1fid - hard_1fid
+    algo2_1fid_diff = algo2_1fid - hard_1fid
+
+    # Plot
+    bar_width = 0.15
+    x = np.arange(len(datasets))
+    offsets = np.array([-1.5, -0.5, 0.5, 1.5]) * bar_width
+
+    fig, ax = plt.subplots(figsize=(12, 7))
+
+    for i, ds in enumerate(datasets):
+        ax.bar(x[i] + offsets[0], algo1_acc_diff[i], width=bar_width, label=r'St. 1 $\mathcal{A}_{\mathcal{C}}$' if i==0 else "", color='tab:blue')
+        ax.bar(x[i] + offsets[1], algo2_acc_diff[i], width=bar_width, label=r'St. 2 $\mathcal{A}_{\mathcal{C}}$' if i==0 else "", color='tab:green')
+        ax.bar(x[i] + offsets[2], algo1_1fid_diff[i], width=bar_width, label=r'St. 1 $1-R_{\mathrm{emp}}^{\mathcal{S}}$' if i==0 else "", color='tab:blue', alpha=0.5, hatch='//')
+        ax.bar(x[i] + offsets[3], algo2_1fid_diff[i], width=bar_width, label=r'St. 2 $1-R_{\mathrm{emp}}^{\mathcal{S}}$' if i==0 else "", color='tab:green', alpha=0.5, hatch='//')
+
+    ax.axhline(0, color='black', linewidth=1)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f'Dataset {d}' for d in datasets])
+    ax.set_ylabel('Difference relative to Hard copy')
+    ax.set_title('Performance of St.1 cp. and St.2 cp. relative to Hard cp.')
+    ax.legend(ncol=2)
+    ax.grid(True, axis='y')
+
+    plt.tight_layout()
+    plt.show()
