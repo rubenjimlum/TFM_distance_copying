@@ -1590,7 +1590,6 @@ def train_copy_MNNd (l_pts, data, lab, X_test, y_test, data_test_syn, y_test_syn
                 layers.Dense(1, activation="linear"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         model.compile(optimizer="adam", loss=keras.losses.MeanSquaredError())
 
         model.fit(data[:pts], lab[:pts], batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
@@ -1644,7 +1643,6 @@ def train_copy_MNNh (data, lab, X_test, y_test, data_test_syn, y_test_syn, bbmod
                 layers.Dense(1, activation="sigmoid"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         model.compile(optimizer="adam", loss=keras.losses.BinaryCrossentropy())
 
         model.fit(data[:pts], lab[:pts], batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
@@ -1779,7 +1777,6 @@ def train_copy_LNNd (l_pts, data, lab, X_test, y_test, data_test_syn, y_test_syn
                 layers.Dense(1, activation="linear"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         model.compile(optimizer="adam", loss=keras.losses.MeanSquaredError())
 
         model.fit(data[:pts], lab[:pts], batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
@@ -1837,7 +1834,6 @@ def train_copy_LNNh (data, lab, X_test, y_test, data_test_syn, y_test_syn, bbmod
                 layers.Dense(1, activation="sigmoid"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         model.compile(optimizer="adam", loss=keras.losses.BinaryCrossentropy())
 
         model.fit(data[:pts], lab[:pts], batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
@@ -1887,7 +1883,6 @@ def train_copy_SNNd (l_pts, data, lab, X_test, y_test, data_test_syn, y_test_syn
                 layers.Dense(1, activation="linear"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         model.compile(optimizer="adam", loss=keras.losses.MeanSquaredError())
 
         model.fit(data[:pts], lab[:pts], batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
@@ -1940,7 +1935,6 @@ def train_copy_SNNh (data, lab, X_test, y_test, data_test_syn, y_test_syn, bbmod
                 layers.Dense(1, activation="sigmoid"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         model.compile(optimizer="adam", loss=keras.losses.BinaryCrossentropy())
 
         model.fit(data[:pts], lab[:pts], batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
@@ -2043,7 +2037,6 @@ def train_copy_MNNd_2_stages (l_pts, data, lab, X_test, y_test, data_test_syn, y
                 layers.Dense(1, activation = "linear"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         modeld.compile(optimizer="adam", loss=keras.losses.MeanSquaredError())
         modeld.fit(data[:pts], lab[:pts], batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
 
@@ -2069,7 +2062,6 @@ def train_copy_MNNd_2_stages (l_pts, data, lab, X_test, y_test, data_test_syn, y
                 layers.Dense(1, activation = "linear"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         model.compile(optimizer="adam", loss=keras.losses.MeanSquaredError())
         model.fit(data_2s, bbmodelW(data_2s)*(np.abs(modeld(data_2s)).flatten()), batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
         print("Computations for", pts, "points done")
@@ -2134,7 +2126,6 @@ def train_copy_LNNd_2_stages (l_pts, data, lab, X_test, y_test, data_test_syn, y
                 layers.Dense(1, activation="linear"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         modeld.compile(optimizer="adam", loss=keras.losses.MeanSquaredError())
         modeld.fit(data[:pts], lab[:pts], batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
 
@@ -2163,7 +2154,6 @@ def train_copy_LNNd_2_stages (l_pts, data, lab, X_test, y_test, data_test_syn, y
                 layers.Dense(1, activation="linear"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         model.compile(optimizer="adam", loss=keras.losses.MeanSquaredError())
         model.fit(data_2s, bbmodelW(data_2s)*(np.abs(modeld(data_2s)).flatten()), batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
         print("Computations for", pts, "points done")
@@ -2224,7 +2214,6 @@ def train_copy_SNNd_2_stages (l_pts, data, lab, X_test, y_test, data_test_syn, y
                 layers.Dense(1, activation = "linear"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         modeld.compile(optimizer="adam", loss=keras.losses.MeanSquaredError())
         modeld.fit(data[:pts], lab[:pts], batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
 
@@ -2248,7 +2237,6 @@ def train_copy_SNNd_2_stages (l_pts, data, lab, X_test, y_test, data_test_syn, y
                 layers.Dense(1, activation = "linear"),
             ]
         )
-        optimizer = keras.optimizers.Adam(learning_rate=0.01)
         model.compile(optimizer="adam", loss=keras.losses.MeanSquaredError())
         model.fit(data_2s, bbmodelW(data_2s)*(np.abs(modeld(data_2s)).flatten()), batch_size=32, epochs= int(round(a*pts**p, 2)), verbose=0)
         print("Computations for", pts, "points done")
